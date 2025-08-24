@@ -1,0 +1,182 @@
+// ----------------------------------------------------
+//  Prisma schema for Real-Time Chat App
+// ----------------------------------------------------
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+//  ENUMS
+// ----------------------------------------------------
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+}
+
+// ----------------------------------------------------
+//  MODELS
+// ----------------------------------------------------
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique @db.VarChar(32)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  avatarUrl    String?  @map("avatar_url")
+  bio          String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  isOnline Boolean  @default(false) @map("is_online")
+  lastSeen DateTime @default(now()) @map("last_seen")
+
+  // ── Relations
+  sentMessages         Message[]                 @relation("MessageSender")
+  conversations        ConversationParticipant[]
+  createdConversations Conversation[]            @relation("ConversationCreator")
+  requestedFriendships Friendship[]              @relation("Requester")
+  receivedFriendships  Friendship[]              @relation("Addressee")
+  messageReads         MessageRead[]
+
+  // ── Friend relations
+  userFriends UserFriend[] @relation("UserFriends")
+  friendOf    UserFriend[] @relation("FriendOf")
+
+  @@map("users")
+}
+
+model Conversation {
+  id            String    @id @default(uuid()) @db.Uuid
+  isGroup       Boolean   @default(false) @map("is_group")
+  title         String?   @db.VarChar(100)
+  avatarUrl     String?   @map("avatar_url")
+  createdBy     String    @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastMessageAt DateTime? @map("last_message_at")
+  lastMessageId String?   @unique @map("last_message_id") @db.Uuid
+
+  lastMessage  Message?                  @relation("LastMessage", fields: [lastMessageId], references: [id])
+  creator      User                      @relation("ConversationCreator", fields: [createdBy], references: [id])
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  conversationId String   @map("conversation_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  joinedAt       DateTime @default(now()) @map("joined_at")
+  role           Int      @default(0) /// 0=member,1=admin,2=owner
+
+  // ── Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@id([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String  @id @default(uuid()) @db.Uuid
+  conversationId String  @map("conversation_id") @db.Uuid
+  senderId       String  @map("sender_id") @db.Uuid
+
+  text           String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  editedAt  DateTime? @map("edited_at")
+  deleted   Boolean   @default(false)
+
+  messageType MessageType @default(TEXT) @map("message_type") // e.g., text, image, file
+
+  // ── Relations
+  conversation   Conversation  @relation(fields: [conversationId], references: [id])
+  sender         User          @relation("MessageSender", fields: [senderId], references: [id])
+  reads          MessageRead[]
+  lastMessageFor Conversation? @relation("LastMessage")
+  Attachment     Attachment[]
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model Attachment {
+  id        String         @id @default(uuid()) @db.Uuid
+  messageId String         @map("message_id") @db.Uuid
+  url       String
+  name      String?
+  mimeType  String?        @map("mime_type")
+  type      AttachmentType @default(FILE)
+  fileSize  Int?           @map("file_size")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // ── Relations
+  message Message @relation(fields: [messageId], references: [id])
+
+  @@index([messageId])
+  @@map("attachments")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+enum AttachmentType {
+  IMAGE
+  VIDEO
+  AUDIO
+  FILE
+}
+
+model Friendship {
+  requesterId String           @map("requester_id") @db.Uuid
+  addresseeId String           @map("addressee_id") @db.Uuid
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  // ── Relations
+  requester User @relation("Requester", fields: [requesterId], references: [id])
+  addressee User @relation("Addressee", fields: [addresseeId], references: [id])
+
+  @@id([requesterId, addresseeId])
+  @@map("friendships")
+}
+
+model MessageRead {
+  messageId String   @map("message_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  seenAt    DateTime @default(now()) @map("seen_at")
+
+  // ── Relations
+  message Message @relation(fields: [messageId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@id([messageId, userId])
+  @@index([userId])
+  @@index([seenAt])
+  @@map("message_reads")
+}
+
+model UserFriend {
+  userId   String @db.Uuid
+  friendId String @db.Uuid
+
+  user   User @relation("UserFriends", fields: [userId], references: [id])
+  friend User @relation("FriendOf", fields: [friendId], references: [id])
+
+  @@id([userId, friendId])
+  @@map("user_friends")
+}
