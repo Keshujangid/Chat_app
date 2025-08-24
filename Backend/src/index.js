@@ -4,10 +4,10 @@ require('dotenv').config();   // load .env early
 const http    = require('http');
 const { Server } = require('socket.io');
 const jwt     = require('jsonwebtoken');
-const registerSocketHandlers = require("./src/sockets/handlers");
+const registerSocketHandlers = require("./sockets/handlers");
 
-const app = require('./src/app');
-const env = require('./src/config/env');
+const app = require('./app');
+const env = require('./config/env');
 
 const httpServer = http.createServer(app);
 
