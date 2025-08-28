@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,6 +73,8 @@ export function Profile({ onClose }) {
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef(null);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
     const fetchMe = async () => {
       const response = await api.get("/users/me");
@@ -103,7 +106,7 @@ export function Profile({ onClose }) {
 
   const onLogout = () => {
     localStorage.removeItem("jwt");
-    window.location.href = "/login";
+    navigate("/login")
   };
 
   const handleProfileUpdate = (field, value) => {
